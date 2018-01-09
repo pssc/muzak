@@ -5,7 +5,7 @@
 
 //  Integration with the squeeze server
 
-var SqueezeServer = require('squeezenode-lordpengwin');
+var SqueezeServer = require('squeezenode-pssc');
 var _ = require('lodash');
 var repromptText = "What do you want me to do";
 
@@ -74,9 +74,8 @@ function onLaunch(launchRequest, session, callback) {
 
     console.log("onLaunch requestId=" + launchRequest.requestId + ", sessionId=" + session.sessionId);
 
-    // Connect to the squeeze server and wait for it to finish its registration.  We do this to make sure that it is online.
-
-    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
+    // Connect to the squeeze server and wait for it to finish its registration.  We do this to make sure that it is online and polling
+    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword,true);
     squeezeserver.on('register', function() {
         startInteractiveSession(callback);
     });
@@ -92,28 +91,32 @@ function onLaunch(launchRequest, session, callback) {
 
 function onIntent(intentRequest, session, callback) {
 
-    console.log("onIntent requestId=" + intentRequest.requestId + ", sessionId=" + session.sessionId);
+    console.log("onIntent(",intentRequest,intentRequest.intent.name,") requestId=" + intentRequest.requestId + ", sessionId=" + session.sessionId );
 
     // Check for a Close intent
-
-    if (intentRequest.intent.intentName == "Close") {
+    if (intentRequest.intent.name == "Close") {
         closeInteractiveSession(callback);
         return;
+    } else if ("Help" == intentRequest.intent.name || "AMAZON.Help" == intentRequest.intent.name) {
+        giveHelp(session, callback);
+	return;
     }
 
     // Connect to the squeeze server and wait for it to finish its registration
-    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword);
-    squeezeserver.on('register', function() {
+    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword,true);
+    squeezeserver.on('register', function(reply) {
 
-        // Get the list of players as any request will require them
-
-        squeezeserver.getPlayers(function(reply) {
+	console.log("onIntent regesiter ",squeezeserver.players );
+        // Get the list of players as any request will require them FIXME from DynoDB
+        //squeezeserver.getPlayers(function(reply) {
             if (reply.ok) {
                 console.log("getPlayers: %j", reply);
                 dispatchIntent(squeezeserver, reply.result, intentRequest.intent, session, callback);
-            } else
+            } else {
+		console.log("getPlayers fail ", reply);
                 callback(session.attributes, buildSpeechletResponse("Get Players", "Failed to get list of players", null, true));
-        });
+	    }
+        //});
     });
 }
 
@@ -139,11 +142,7 @@ function dispatchIntent(squeezeserver, players, intent, session, callback) {
     } else if ("NamePlayers" == intentName) {
         namePlayers(players, session, callback);
 
-    } else if ("Help" == intentName) {
-        giveHelp(session, callback);
-
     } else {
-
         // Try to find the target player
 
         var player = findPlayerObject(squeezeserver, players, ((typeof intent.slots.Player.value !== 'undefined') && (intent.slots.Player.value !== null) ?
@@ -745,7 +744,7 @@ function giveHelp(session, callback) {
                                                                 "set volume on player X to one to one hundred, " +
                                                                 "what's playing on player X, " +
                                                                 "set player X, " +
-                                                                "what are my player names, " +
+                                                                "list players, " +
                                                                 "exit, " +
                                                                 "help.",
                                                                 "What do you want to do?", false));

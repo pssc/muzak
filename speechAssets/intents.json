@@ -18,19 +18,19 @@
         },
         {
           "name": "Artist",
-          "type": "AMAZON.LITERAL"
+          "type": "ARTISTS"
         },
         {
           "name": "Album",
-          "type": "AMAZON.LITERAL"
+          "type": "ALBUMS"
         },
         {
           "name": "Genre",
-          "type": "AMAZON.LITERAL"
+          "type": "GENRES"
         },
         {
           "name": "Playlist",
-          "type": "AMAZON.LITERAL"
+          "type": "FREENAME"
         }
       ]
     },

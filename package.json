@@ -1,7 +1,7 @@
 {
   "name": "muzak",
   "version": "1.0.0",
-  "description": "Amazon Echo Skill for Logitech/Squeezebox Media Server",
+  "description": "Amazon Alexa Skill for Logitech/Squeezebox Media Server",
   "license": "MIT",
   "scripts": {
     "test": "claudia test-lambda --event test/help.fixture.json"
@@ -15,6 +15,6 @@
   },
   "dependencies": {
     "lodash": "^4.17.4",
-    "squeezenode-lordpengwin": "git+https://github.com/lordpengwin/squeezenode.git"
+    "squeezenode-pssc": "git+https://github.com/pssc/squeezenode.git"
   }
 }
