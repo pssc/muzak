@@ -75,9 +75,10 @@ function onLaunch(launchRequest, session, callback) {
     console.log("onLaunch requestId=" + launchRequest.requestId + ", sessionId=" + session.sessionId);
 
     // Connect to the squeeze server and wait for it to finish its registration.  We do this to make sure that it is online and polling
+	// Do we need to do this will cashed session data?
     var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword,true);
-    squeezeserver.on('register', function() {
-        startInteractiveSession(callback);
+    squeezeserver.on('register', function(reply) {
+        startInteractiveSession(callback,squeezeserver, reply);
     });
 }
 
@@ -90,8 +91,7 @@ function onLaunch(launchRequest, session, callback) {
  */
 
 function onIntent(intentRequest, session, callback) {
-
-    console.log("onIntent(",intentRequest,intentRequest.intent.name,") requestId=" + intentRequest.requestId + ", sessionId=" + session.sessionId );
+    console.log("onIntent(",intentRequest,intentRequest.intent.name,") requestId=" + intentRequest.requestId + ", sessionId=" + session.sessionId, "Session Attr:-" ,session.attributes);
 
     // Check for a Close intent
     if (intentRequest.intent.name == "Close") {
@@ -102,22 +102,27 @@ function onIntent(intentRequest, session, callback) {
 	return;
     }
 
-    // Connect to the squeeze server and wait for it to finish its registration
-    var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword,true);
-    squeezeserver.on('register', function(reply) {
-
-	console.log("onIntent regesiter ",squeezeserver.players );
-        // Get the list of players as any request will require them FIXME from DynoDB
-        //squeezeserver.getPlayers(function(reply) {
+    if (session.attributes !== undefined && session.attributes['players'] !== undefined && session.attributes.players.length > 0) {
+	// Use session player data as on launch we hare connected and stashed the players
+        var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword, true, true);
+        console.log("sessionPlayers: %j", session.attributes.players);
+	squeezeserver.registerPlayers(session.attributes.players);
+        dispatchIntent(squeezeserver, intentRequest.intent, session, callback);
+    } else {
+        // Connect to the squeeze server and wait for it to finish its registration
+        var squeezeserver = new SqueezeServer(config.squeezeserverURL, config.squeezeserverPort, config.squeezeServerUsername, config.squeezeServerPassword, true);
+        squeezeserver.on('register', function(reply) {
+	    console.log("onIntent regesiter ",squeezeserver.players );
             if (reply.ok) {
                 console.log("getPlayers: %j", reply);
-                dispatchIntent(squeezeserver, reply.result, intentRequest.intent, session, callback);
+		session.attribuites['players'] = reply.result;
+                dispatchIntent(squeezeserver, intentRequest.intent, session, callback);
             } else {
 		console.log("getPlayers fail ", reply);
                 callback(session.attributes, buildSpeechletResponse("Get Players", "Failed to get list of players", null, true));
-	    }
-        //});
-    });
+            }
+        });
+    }
 }
 
 /**
@@ -129,10 +134,11 @@ function onIntent(intentRequest, session, callback) {
  * @param session The current session
  * @param callback The callback to use to return the result
  */
-
-function dispatchIntent(squeezeserver, players, intent, session, callback) {
+//FIXME players part of session
+function dispatchIntent(squeezeserver, intent, session, callback) {
 
     var intentName = intent.name;
+    var players = session.attributes.players;
     console.log("Got intent: %j", intent);
     console.log("Session is %j", session);
 
@@ -158,7 +164,7 @@ function dispatchIntent(squeezeserver, players, intent, session, callback) {
         } else {
 
             console.log("Player is " + player);
-            session.attributes = {player: player.name.toLowerCase()};
+            session.attributes['player'] = player.name.toLowerCase();
 
             // Call the target intent
 
@@ -211,11 +217,9 @@ function onSessionEnded(sessionEndedRequest, session) {
  * @param callback A callback to execute to return the response
  */
 
-function startInteractiveSession(callback) {
+function startInteractiveSession(callback, squeezeserver ,reply) {
 
-    // If we wanted to initialize the session to have some attributes we could add those here.
-
-    var sessionAttributes = {};
+    var sessionAttributes = { players: reply.result , lastr: reply , player: undefined };
     var cardTitle = "Control Started";
     var speechOutput = "Squeezebox control started";
     var shouldEndSession = false;
@@ -547,7 +551,7 @@ function syncPlayers(squeezeserver, players, intent, session, callback) {
             callback(session.attributes, buildSpeechletResponse(intentName, "Player not found", null, session.new));
         }
 
-        session.attributes = {player: player1.name.toLowerCase()};
+        session.attributes['player'] = player1.name.toLowerCase();
         player2 = null;
         for (var pl in players) {
             if (players[pl].name.toLowerCase() === normalizePlayer(intent.slots.SecondPlayer.value))
@@ -592,6 +596,7 @@ function namePlayers(players, session, callback) {
 
     try {
         // Build a list of player names
+	    // FIXME LCnessary?
         for (var pl in players) {
             numplayers = numplayers + 1;
             if (playernames == null) {
@@ -812,6 +817,7 @@ function whatsPlaying(player, session, callback) {
  * @returns The target player or undefined if it is not found
  */
 
+//FIXME into squeezenode
 function findPlayerObject(squeezeserver, players, name) {
 
     name = normalizePlayer(name);
@@ -843,6 +849,7 @@ function findPlayerObject(squeezeserver, players, name) {
  * @returns The normalized player name
  */
 
+//FIXME into squeezenode
 function normalizePlayer(playerName) {
 
     playerName || (playerName = ''); // protect against `playerName` being undefined
